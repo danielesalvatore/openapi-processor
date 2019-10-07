@@ -106,20 +106,20 @@ function addApiKeyDefinition({template}) {
 }
 
 function createOutputFilename(params) {
-  const {originalFilename, keepFilenameSimple, outputFolder} = params
+  const {originalFilename, keepOriginalFilename, outputFolder} = params
   const filenameWithoutExt = originalFilename
     .split('.')
     .reverse()[1]
     .split('/')
     .reverse()[0]
 
-  const postfix = createPostfix({features: params, keepFilenameSimple})
+  const postfix = createPostfix({features: params, keepOriginalFilename})
   const filename = `${outputFolder}/${filenameWithoutExt}${postfix}.json`
 
   return filename
 
-  function createPostfix({features, keepFilenameSimple}) {
-    if (keepFilenameSimple) {
+  function createPostfix({features, keepOriginalFilename}) {
+    if (keepOriginalFilename) {
       return ''
     }
     let prostfix = ''
@@ -172,9 +172,9 @@ function init() {
     BASE_PATH,
     SCHEMES,
     ADD_API_KEY,
-    SIMPLIFIED_OUTPUT_FILENAME,
-    PROXY_FINAL_URI,
-    PROXY_URI_TO_REPLACE,
+    OUTPUT_KEEP_ORIGINAL_FILENAME,
+    INTEGRATION_FINAL_URI,
+    INTEGRATION_URI_TO_REPLACE,
   } = process.env
   if (!INPUT_OPENAPI_API) {
     throw new Error(
@@ -213,19 +213,19 @@ function init() {
   }
 
   // Replace Integration URI
-  const addIntegrationURI = !!PROXY_FINAL_URI || !!PROXY_URI_TO_REPLACE
+  const addIntegrationURI = !!INTEGRATION_FINAL_URI || !!INTEGRATION_URI_TO_REPLACE
   if (addIntegrationURI) {
     // Validation: both values have to be provided
-    if (!PROXY_FINAL_URI || !PROXY_URI_TO_REPLACE) {
+    if (!INTEGRATION_FINAL_URI || !INTEGRATION_URI_TO_REPLACE) {
       throw new Error(
-        `Impossible to replace integration URI: both 'PROXY_URI_TO_REPLACE' and 'PROXY_FINAL_URI' have to be specified in .env file`,
+        `Impossible to replace integration URI: both 'INTEGRATION_URI_TO_REPLACE' and 'INTEGRATION_FINAL_URI' have to be specified in .env file`,
       )
     }
 
     template = replaceIntegrationURI({
       template,
-      searchValue: PROXY_URI_TO_REPLACE,
-      newValue: PROXY_FINAL_URI,
+      searchValue: INTEGRATION_URI_TO_REPLACE,
+      newValue: INTEGRATION_FINAL_URI,
     })
   }
 
@@ -238,7 +238,7 @@ function init() {
     addHost: !!HOST || !!BASE_PATH,
     addSchemes: !!SCHEMES,
     addApiKey,
-    keepFilenameSimple: SIMPLIFIED_OUTPUT_FILENAME === 'true',
+    keepOriginalFilename: OUTPUT_KEEP_ORIGINAL_FILENAME === 'true',
     addIntegrationURI,
   })
 
