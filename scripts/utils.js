@@ -1,12 +1,13 @@
 const fs = require('fs')
 const Path = require('path')
+const chalk = require('chalk')
 
 const _loadLocalFile = ({path}) => {
   const resolvedPath = Path.resolve(path)
   try {
     fs.existsSync(resolvedPath)
   } catch (err) {
-    console.error(err)
+    _logError(err)
     throw new Error(`Input file doesn't exists! ${resolvedPath} seems to be an invalid file path`)
   }
 
@@ -20,7 +21,7 @@ const _loadJSON = ({path}) => {
   try {
     result = JSON.parse(content)
   } catch (err) {
-    console.error(err)
+    _logError(err)
     throw new Error(`Input is not a valid JSON! ${resolvedPath} seems to be an invalid JSON file`)
   }
 
@@ -49,3 +50,20 @@ const _writeOutputFile = ({filename, content}) => {
 }
 
 module.exports.writeOutputFile = _writeOutputFile
+
+const _logSuccess = text => {
+  console.log(chalk.green(text))
+}
+module.exports.logSuccess = _logSuccess
+
+const _logInfo = text => {
+  console.log()
+  console.log(chalk.blue(text))
+}
+module.exports.logInfo = _logInfo
+
+const _logError = text => {
+  console.log()
+  console.log(chalk.red(text))
+}
+module.exports.logError = _logError

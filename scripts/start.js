@@ -1,5 +1,4 @@
-const {loadOpenAPITemplate, loadJS, writeOutputFile} = require('./utils')
-const chalk = require('chalk')
+const {loadOpenAPITemplate, loadJS, writeOutputFile, logSuccess, logInfo} = require('./utils')
 
 // Env file configuration
 require('dotenv').config()
@@ -12,7 +11,7 @@ function addOptionsMethods({template}) {
 
   keys.forEach(k => {
     const routeDeclaration = paths[k]
-    routeDeclaration.options = options
+    routeDeclaration.options = {...options}
   })
 
   logSuccess(`\tCORS \t\t✓`)
@@ -26,7 +25,7 @@ function addCorsDefinition({template}) {
 }
 
 function addInfo({template, title, version}) {
-  if (template.info !== 'object') {
+  if (typeof template.info !== 'object') {
     template.info = {}
   }
 
@@ -71,24 +70,95 @@ function addSchemes({template, schemes}) {
   return template
 }
 
-function createOutputFilename({originalFilename, addCors, outputFolder}) {
+function addApiKeyDefinition({template}) {
+  const {securityDefinitions} = loadJS({path: '../templates/api-key.js'})
+
+  // Add security definitions
+  template.securityDefinitions = {...securityDefinitions}
+  const apyKeyNames = Object.keys(securityDefinitions)
+  const methodSecurityDefinition = apyKeyNames.map(k => ({[k]: []}))
+
+  // Add x-amazon-apigateway-api-key-source Property
+  // https://docs.aws.amazon.com/en_pv/apigateway/latest/developerguide/api-gateway-swagger-extensions-api-key-source.html
+  template['x-amazon-apigateway-api-key-source'] = 'HEADER'
+
+  // Add API key to each path
+  const {paths} = template
+  const resources = Object.keys(paths)
+
+  resources.forEach(r => {
+    const resourceDefinition = paths[r]
+    const methods = Object.keys(resourceDefinition)
+
+    methods.forEach(m => {
+      const definition = resourceDefinition[m]
+
+      if (!Array.isArray(definition.security)) {
+        definition.security = []
+      }
+      definition.security = definition.security.concat(methodSecurityDefinition.slice(0))
+    })
+  })
+
+  logSuccess(`\tAPI Key \t✓`)
+
+  return template
+}
+
+function createOutputFilename(params) {
+  const {originalFilename, keepFilenameSimple, outputFolder} = params
   const filenameWithoutExt = originalFilename
     .split('.')
     .reverse()[1]
     .split('/')
     .reverse()[0]
 
-  const filename = `${outputFolder}/${filenameWithoutExt}${addCors ? '_cors' : ''}.json`
+  const postfix = createPostfix({features: params, keepFilenameSimple})
+  const filename = `${outputFolder}/${filenameWithoutExt}${postfix}.json`
+
   return filename
+
+  function createPostfix({features, keepFilenameSimple}) {
+    if (keepFilenameSimple) {
+      return ''
+    }
+    let prostfix = ''
+    const keys = Object.keys(features)
+    keys.forEach(f => {
+      if (!!features[f] && f.startsWith('add')) {
+        const cleaned = f.replace('add', '')
+        prostfix = `${prostfix}_${cleaned.toLowerCase()}`
+      }
+    })
+
+    return prostfix
+  }
 }
 
-function logSuccess(text) {
-  console.log(chalk.green(text))
-}
+function replaceIntegrationURI({template, searchValue, newValue}) {
+  // Add API key to each path
+  const {paths} = template
+  const resources = Object.keys(paths)
 
-function logInfo(text) {
-  console.log()
-  console.log(chalk.blue(text))
+  resources.forEach(r => {
+    const resourceDefinition = paths[r]
+    const methods = Object.keys(resourceDefinition)
+    const integrationField = 'x-amazon-apigateway-integration'
+    methods.forEach(m => {
+      const definition = resourceDefinition[m]
+
+      if (!!definition[integrationField] && !!definition[integrationField].uri) {
+        definition[integrationField].uri = definition[integrationField].uri.replace(
+          searchValue,
+          newValue,
+        )
+      }
+    })
+  })
+
+  logSuccess(`\tIntegration URI \t✓`)
+
+  return template
 }
 
 function init() {
@@ -101,6 +171,10 @@ function init() {
     HOST,
     BASE_PATH,
     SCHEMES,
+    ADD_API_KEY,
+    SIMPLIFIED_OUTPUT_FILENAME,
+    PROXY_FINAL_URI,
+    PROXY_URI_TO_REPLACE,
   } = process.env
   if (!INPUT_OPENAPI_API) {
     throw new Error(
@@ -132,11 +206,40 @@ function init() {
   // Alter Schemes
   template = addSchemes({template, schemes: SCHEMES})
 
+  // Add API Key
+  const addApiKey = ADD_API_KEY === 'true'
+  if (addApiKey) {
+    template = addApiKeyDefinition({template})
+  }
+
+  // Replace Integration URI
+  const addIntegrationURI = !!PROXY_FINAL_URI || !!PROXY_URI_TO_REPLACE
+  if (addIntegrationURI) {
+    // Validation: both values have to be provided
+    if (!PROXY_FINAL_URI || !PROXY_URI_TO_REPLACE) {
+      throw new Error(
+        `Impossible to replace integration URI: both 'PROXY_URI_TO_REPLACE' and 'PROXY_FINAL_URI' have to be specified in .env file`,
+      )
+    }
+
+    template = replaceIntegrationURI({
+      template,
+      searchValue: PROXY_URI_TO_REPLACE,
+      newValue: PROXY_FINAL_URI,
+    })
+  }
+
   // Write output file
   const filename = createOutputFilename({
     originalFilename: INPUT_OPENAPI_API,
     outputFolder: OUPUT_FOLDER,
     addCors,
+    addInfo: !!INFO_VERSION || !!INFO_TITLE,
+    addHost: !!HOST || !!BASE_PATH,
+    addSchemes: !!SCHEMES,
+    addApiKey,
+    keepFilenameSimple: SIMPLIFIED_OUTPUT_FILENAME === 'true',
+    addIntegrationURI,
   })
 
   writeOutputFile({
@@ -144,7 +247,7 @@ function init() {
     content: template,
   })
 
-  logInfo(`Write Output: \t\t✓`)
+  logInfo(`Output in ${filename}`)
 }
 
 init()
