@@ -131,8 +131,9 @@ function addApiKeyDefinition({template}) {
   return template
 }
 
-function addCognitoAuthorizer({template}) {
+function addCognitoAuthorizer({template, cognitoArn}) {
   const definition = loadJS({path: '../templates/security-definition-cognito-authorizer.js'})
+  definition.CognitoAuthorizer['x-amazon-apigateway-authorizer'].providerARNs = [cognitoArn]
 
   template = applySecuriyDefinition({
     template,
@@ -230,6 +231,7 @@ function init() {
     SCHEMES,
     INTEGRATION_FINAL_URI,
     INTEGRATION_URI_TO_REPLACE,
+    COGNITO_ARN,
     TAGS,
     addCors,
     addApiKey,
@@ -272,7 +274,10 @@ function init() {
 
   // Add Cognito Authorizer
   if (addCognito) {
-    template = addCognitoAuthorizer({template})
+    template = addCognitoAuthorizer({
+      template,
+      cognitoArn: COGNITO_ARN,
+    })
   }
 
   // Replace Integration URI
