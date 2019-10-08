@@ -8,6 +8,7 @@ Tool that makes APIs migration to AWS API gateway simple. Start from a OpenAPI-c
 3. Replace the example `.env` configurations with the desired values
 4. Run `npm start` command to generate the APIs specification files and the CloudFormation template (CFT) to deploy your APIs
 5. The output files (APIs specification & CFT) will be placed within the output folder, specified in `.env`
+6. To create the API Gateway stack run `npm run deploy`
 
 ## What should I configure?
 `.env.example` contains the descriptions of all the available configuration
