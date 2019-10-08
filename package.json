@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node ./scripts/start.js"
+    "start": "cross-env AWS_SDK_LOAD_CONFIG=true node ./scripts/start.js",
+    "deploy": "cross-env AWS_SDK_LOAD_CONFIG=true node ./scripts/deploy.js"
   },
   "repository": {
     "type": "git",
@@ -14,7 +15,9 @@
   "license": "ISC",
   "homepage": "https://bitbucket.org/cioapps/openapi-processor#readme",
   "dependencies": {
+    "aws-sdk": "^2.544.0",
     "chalk": "^2.4.2",
+    "cross-env": "^6.0.3",
     "dotenv": "^8.1.0",
     "moment": "^2.24.0"
   }

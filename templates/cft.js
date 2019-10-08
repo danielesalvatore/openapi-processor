@@ -15,7 +15,7 @@ module.exports = {
       AllowedValues: ['Development', 'QA', 'Production'],
       Default: 'Development',
     },
-    CodeS3Bucket: {
+    S3Bucket: {
       Description: 'S3 bucket where the swagger file file is stored',
       Type: 'String',
       Default: 'fao-aws-configuration-files',
@@ -34,9 +34,9 @@ module.exports = {
     RestApi: {
       Type: 'AWS::ApiGateway::RestApi',
       Properties: {
-        Name: '!Ref ApplicationName',
+        Name: {Ref: 'ApplicationName'},
         EndpointConfiguration: {
-          Types: ['!Ref EndpointType'],
+          Types: [{Ref: 'EndpointType'}],
         },
         FailOnWarnings: 'true',
         Body: {
@@ -44,7 +44,7 @@ module.exports = {
             Name: 'AWS::Include',
             Parameters: {
               Location: {
-                'Fn::Sub': 's3://${CodeS3Bucket}/${ApplicationName}/${SwaggerFile}',
+                'Fn::Sub': 's3://${S3Bucket}/${ApplicationName}/${Environment}/${SwaggerFile}',
               },
             },
           },

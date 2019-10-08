@@ -1,11 +1,13 @@
 const moment = require('moment')
 const {
-  createOutputFilename,
+  createCloudFormationTemplateFilename,
+  createAPIsSpecificationFilename,
   loadOpenAPITemplate,
   loadJS,
   writeOutputFile,
   logSuccess,
   logInfo,
+  getConfig,
 } = require('./utils')
 
 // Env file configuration
@@ -186,7 +188,7 @@ function addTagsDefinition({template, tags}) {
 
 function writeAPIsSpecification(params) {
   const {template} = params
-  const filename = createOutputFilename({...params, extension: 'json'})
+  const filename = createAPIsSpecificationFilename()
 
   writeOutputFile({
     content: template,
@@ -197,7 +199,7 @@ function writeAPIsSpecification(params) {
 }
 
 function writeCloudFormationTemplate(params) {
-  const filename = createOutputFilename({...params, extension: 'json', prefix: 'CFT_'})
+  const filename = createCloudFormationTemplateFilename()
 
   let content = loadJS({path: '../templates/cft.js'})
   const {applicationName} = params
@@ -221,26 +223,24 @@ function writeCloudFormationTemplate(params) {
 function init() {
   const {
     INPUT_OPENAPI_API,
-    ADD_CORS,
-    OUPUT_FOLDER,
     INFO_VERSION,
     INFO_TITLE,
     HOST,
     BASE_PATH,
     SCHEMES,
-    ADD_API_KEY,
-    OUTPUT_KEEP_ORIGINAL_FILENAME,
     INTEGRATION_FINAL_URI,
     INTEGRATION_URI_TO_REPLACE,
     TAGS,
-    APPLICATION_NAME,
-    ADD_COGNITO_AUTHORIZER,
-  } = process.env
-  if (!INPUT_OPENAPI_API) {
-    throw new Error(
-      `Impossible to load OpenAPI template. 'INPUT_OPENAPI_API' not specified in .env file`,
-    )
-  }
+    addCors,
+    addApiKey,
+    addCognito,
+    addIntegrationURI,
+    addTags,
+    originalFilename,
+    outputFolder,
+    keepOriginalFilename,
+    applicationName,
+  } = getConfig()
 
   let template = loadOpenAPITemplate({path: INPUT_OPENAPI_API})
   logSuccess(`\t✓\tLoad template`)
@@ -248,7 +248,6 @@ function init() {
   logInfo(`Start processing...`)
 
   // Add CORS
-  const addCors = ADD_CORS === 'true'
   if (addCors) {
     template = addCorsDefinition({template})
   }
@@ -267,19 +266,16 @@ function init() {
   template = addSchemes({template, schemes: SCHEMES})
 
   // Add API Key
-  const addApiKey = ADD_API_KEY === 'true'
   if (addApiKey) {
     template = addApiKeyDefinition({template})
   }
 
   // Add Cognito Authorizer
-  const addCognito = ADD_COGNITO_AUTHORIZER === 'true'
   if (addCognito) {
     template = addCognitoAuthorizer({template})
   }
 
   // Replace Integration URI
-  const addIntegrationURI = !!INTEGRATION_FINAL_URI || !!INTEGRATION_URI_TO_REPLACE
   if (addIntegrationURI) {
     // Validation: both values have to be provided
     if (!INTEGRATION_FINAL_URI || !INTEGRATION_URI_TO_REPLACE) {
@@ -296,7 +292,6 @@ function init() {
   }
 
   // Add Tags
-  const addTags = !!TAGS
   if (addTags) {
     template = addTagsDefinition({
       template,
@@ -307,18 +302,18 @@ function init() {
   // Write Output files
   const params = {
     template,
-    originalFilename: INPUT_OPENAPI_API,
-    outputFolder: OUPUT_FOLDER,
+    originalFilename,
+    outputFolder,
     addCors,
-    addInfo: !!INFO_VERSION || !!INFO_TITLE,
-    addHost: !!HOST || !!BASE_PATH,
-    addSchemes: !!SCHEMES,
+    addInfo,
+    addHost,
+    addSchemes,
     addApiKey,
     addCognito,
-    keepOriginalFilename: OUTPUT_KEEP_ORIGINAL_FILENAME === 'true',
+    keepOriginalFilename,
     addIntegrationURI,
     addTags,
-    applicationName: APPLICATION_NAME,
+    applicationName,
   }
   // APIs specification
   writeAPIsSpecification(params)

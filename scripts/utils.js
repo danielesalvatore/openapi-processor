@@ -62,23 +62,25 @@ const _logInfo = text => {
 module.exports.logInfo = _logInfo
 
 const _logError = text => {
-  console.log()
   console.log(chalk.red(text))
 }
 module.exports.logError = _logError
 
-function _createOutputFilename(params) {
-  const {originalFilename, keepOriginalFilename, outputFolder, extension, prefix} = params
+function _createOutputFilename(params = {}) {
+  const {prefix, extension = 'json', excludeOutputFolder} = params
+  const {originalFilename, keepOriginalFilename, outputFolder} = (features = _getConfig())
+
   const filenameWithoutExt = originalFilename
     .split('.')
     .reverse()[1]
     .split('/')
     .reverse()[0]
 
-  const postfix = createPostfix({features: params, keepOriginalFilename})
-  const filename = `${outputFolder}/${
-    !!prefix ? prefix : ''
-  }${filenameWithoutExt}${postfix}.${extension}`
+  const postfix = createPostfix({features, keepOriginalFilename})
+
+  const pref = `${excludeOutputFolder ? '' : `${outputFolder}/`}`
+  const filenamePref = !!prefix ? prefix : ''
+  const filename = `${pref}${filenamePref}${filenameWithoutExt}${postfix}.${extension}`
 
   return filename
 
@@ -99,3 +101,56 @@ function _createOutputFilename(params) {
   }
 }
 module.exports.createOutputFilename = _createOutputFilename
+
+function _createCloudFormationTemplateFilename(params) {
+  return _createOutputFilename({...params, prefix: 'CFT_'})
+}
+module.exports.createCloudFormationTemplateFilename = _createCloudFormationTemplateFilename
+
+function _createAPIsSpecificationFilename(params) {
+  return _createOutputFilename({...params})
+}
+module.exports.createAPIsSpecificationFilename = _createAPIsSpecificationFilename
+
+function _getConfig() {
+  const {
+    INPUT_OPENAPI_API,
+    ADD_CORS,
+    OUPUT_FOLDER,
+    INFO_VERSION,
+    INFO_TITLE,
+    HOST,
+    BASE_PATH,
+    SCHEMES,
+    ADD_API_KEY,
+    OUTPUT_KEEP_ORIGINAL_FILENAME,
+    INTEGRATION_FINAL_URI,
+    INTEGRATION_URI_TO_REPLACE,
+    TAGS,
+    APPLICATION_NAME,
+    ADD_COGNITO_AUTHORIZER,
+  } = process.env
+
+  if (!INPUT_OPENAPI_API) {
+    throw new Error(
+      `Impossible to load OpenAPI API file. 'INPUT_OPENAPI_API' not specified in .env file`,
+    )
+  }
+
+  return {
+    ...process.env,
+    addCors: ADD_CORS === 'true',
+    addApiKey: ADD_API_KEY === 'true',
+    addIntegrationURI: !!INTEGRATION_FINAL_URI || !!INTEGRATION_URI_TO_REPLACE,
+    addTags: !!TAGS,
+    originalFilename: INPUT_OPENAPI_API,
+    outputFolder: OUPUT_FOLDER,
+    addInfo: !!INFO_VERSION || !!INFO_TITLE,
+    addHost: !!HOST || !!BASE_PATH,
+    addSchemes: !!SCHEMES,
+    addCognito: ADD_COGNITO_AUTHORIZER === 'true',
+    keepOriginalFilename: OUTPUT_KEEP_ORIGINAL_FILENAME === 'true',
+    applicationName: APPLICATION_NAME,
+  }
+}
+module.exports.getConfig = _getConfig
