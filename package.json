@@ -15,6 +15,7 @@
   "homepage": "https://bitbucket.org/cioapps/openapi-processor#readme",
   "dependencies": {
     "chalk": "^2.4.2",
-    "dotenv": "^8.1.0"
+    "dotenv": "^8.1.0",
+    "moment": "^2.24.0"
   }
 }

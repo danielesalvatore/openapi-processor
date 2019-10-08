@@ -1,4 +1,12 @@
-const {loadOpenAPITemplate, loadJS, writeOutputFile, logSuccess, logInfo} = require('./utils')
+const moment = require('moment')
+const {
+  createOutputFilename,
+  loadOpenAPITemplate,
+  loadJS,
+  writeOutputFile,
+  logSuccess,
+  logInfo,
+} = require('./utils')
 
 // Env file configuration
 require('dotenv').config()
@@ -14,7 +22,7 @@ function addOptionsMethods({template}) {
     routeDeclaration.options = {...options}
   })
 
-  logSuccess(`\tCORS \t\t✓`)
+  logSuccess(`\t✓\tCORS`)
 
   return template
 }
@@ -31,12 +39,12 @@ function addInfo({template, title, version}) {
 
   if (!!title) {
     template.info.title = title
-    logSuccess(`\tTitle \t\t✓`)
+    logSuccess(`\t✓\tTitle`)
   }
 
   if (!!version) {
     template.info.version = version
-    logSuccess(`\tVersion \t✓`)
+    logSuccess(`\t✓\tVersion`)
   }
 
   return template
@@ -45,12 +53,12 @@ function addInfo({template, title, version}) {
 function addHost({template, host, basePath}) {
   if (!!host) {
     template.host = host
-    logSuccess(`\tHost \t\t✓`)
+    logSuccess(`\t✓\tHost`)
   }
 
   if (!!basePath) {
     template.basePath = basePath
-    logSuccess(`\tBase Path \t✓`)
+    logSuccess(`\t✓\tBase Path`)
   }
 
   return template
@@ -65,17 +73,22 @@ function addSchemes({template, schemes}) {
 
   template.schemes = split
 
-  logSuccess(`\tSchemes \t✓`)
+  logSuccess(`\t✓\tSchemes`)
 
   return template
 }
 
-function addApiKeyDefinition({template}) {
-  const {securityDefinitions} = loadJS({path: '../templates/api-key.js'})
+function applySecuriyDefinition({template, definition}) {
+  // Add API Key security definitions
+  if (typeof template.securityDefinitions !== 'object') {
+    template.securityDefinitions = {}
+  }
+  template.securityDefinitions = {
+    ...template.securityDefinitions,
+    ...definition,
+  }
 
-  // Add security definitions
-  template.securityDefinitions = {...securityDefinitions}
-  const apyKeyNames = Object.keys(securityDefinitions)
+  const apyKeyNames = Object.keys(definition)
   const methodSecurityDefinition = apyKeyNames.map(k => ({[k]: []}))
 
   // Add x-amazon-apigateway-api-key-source Property
@@ -100,39 +113,33 @@ function addApiKeyDefinition({template}) {
     })
   })
 
-  logSuccess(`\tAPI Key \t✓`)
+  return template
+}
+
+function addApiKeyDefinition({template}) {
+  const definition = loadJS({path: '../templates/security-definition-api-key.js'})
+
+  template = applySecuriyDefinition({
+    template,
+    definition,
+  })
+
+  logSuccess(`\t✓\tAPI Key`)
 
   return template
 }
 
-function createOutputFilename(params) {
-  const {originalFilename, keepOriginalFilename, outputFolder} = params
-  const filenameWithoutExt = originalFilename
-    .split('.')
-    .reverse()[1]
-    .split('/')
-    .reverse()[0]
+function addCognitoAuthorizer({template}) {
+  const definition = loadJS({path: '../templates/security-definition-cognito-authorizer.js'})
 
-  const postfix = createPostfix({features: params, keepOriginalFilename})
-  const filename = `${outputFolder}/${filenameWithoutExt}${postfix}.json`
+  template = applySecuriyDefinition({
+    template,
+    definition,
+  })
 
-  return filename
+  logSuccess(`\t✓\tCognito API Key`)
 
-  function createPostfix({features, keepOriginalFilename}) {
-    if (keepOriginalFilename) {
-      return ''
-    }
-    let prostfix = ''
-    const keys = Object.keys(features)
-    keys.forEach(f => {
-      if (!!features[f] && f.startsWith('add')) {
-        const cleaned = f.replace('add', '')
-        prostfix = `${prostfix}_${cleaned.toLowerCase()}`
-      }
-    })
-
-    return prostfix
-  }
+  return template
 }
 
 function replaceIntegrationURI({template, searchValue, newValue}) {
@@ -156,9 +163,59 @@ function replaceIntegrationURI({template, searchValue, newValue}) {
     })
   })
 
-  logSuccess(`\tIntegration URI \t✓`)
+  logSuccess(`\t✓\tIntegration URI`)
 
   return template
+}
+
+function addTagsDefinition({template, tags}) {
+  if (!Array.isArray(template)) {
+    template.tags = []
+  }
+
+  const split = tags.split(',')
+  split.forEach(t => {
+    const [key, value] = t.split(':')
+    template.tags.push({[key]: value})
+  })
+
+  logSuccess(`\t✓\tTags`)
+
+  return template
+}
+
+function writeAPIsSpecification(params) {
+  const {template} = params
+  const filename = createOutputFilename({...params, extension: 'json'})
+
+  writeOutputFile({
+    content: template,
+    filename,
+  })
+
+  logInfo(`APIs specification in ${filename}`)
+}
+
+function writeCloudFormationTemplate(params) {
+  const filename = createOutputFilename({...params, extension: 'json', prefix: 'CFT_'})
+
+  let content = loadJS({path: '../templates/cft.js'})
+  const {applicationName} = params
+
+  // Alter Description
+  content.Description = `${content.Description}${
+    !!applicationName ? ` for ${applicationName}` : ''
+  }`
+
+  // Alter Metadata.LastUpdate
+  content.Metadata.LastUpdate = moment().format('DD-MM-YYYY')
+
+  writeOutputFile({
+    content,
+    filename,
+  })
+
+  logInfo(`CloudFormation template in ${filename}`)
 }
 
 function init() {
@@ -175,6 +232,9 @@ function init() {
     OUTPUT_KEEP_ORIGINAL_FILENAME,
     INTEGRATION_FINAL_URI,
     INTEGRATION_URI_TO_REPLACE,
+    TAGS,
+    APPLICATION_NAME,
+    ADD_COGNITO_AUTHORIZER,
   } = process.env
   if (!INPUT_OPENAPI_API) {
     throw new Error(
@@ -183,7 +243,7 @@ function init() {
   }
 
   let template = loadOpenAPITemplate({path: INPUT_OPENAPI_API})
-  logSuccess(`\tLoad template \t✓`)
+  logSuccess(`\t✓\tLoad template`)
 
   logInfo(`Start processing...`)
 
@@ -212,6 +272,12 @@ function init() {
     template = addApiKeyDefinition({template})
   }
 
+  // Add Cognito Authorizer
+  const addCognito = ADD_COGNITO_AUTHORIZER === 'true'
+  if (addCognito) {
+    template = addCognitoAuthorizer({template})
+  }
+
   // Replace Integration URI
   const addIntegrationURI = !!INTEGRATION_FINAL_URI || !!INTEGRATION_URI_TO_REPLACE
   if (addIntegrationURI) {
@@ -229,8 +295,18 @@ function init() {
     })
   }
 
-  // Write output file
-  const filename = createOutputFilename({
+  // Add Tags
+  const addTags = !!TAGS
+  if (addTags) {
+    template = addTagsDefinition({
+      template,
+      tags: TAGS,
+    })
+  }
+
+  // Write Output files
+  const params = {
+    template,
     originalFilename: INPUT_OPENAPI_API,
     outputFolder: OUPUT_FOLDER,
     addCors,
@@ -238,16 +314,17 @@ function init() {
     addHost: !!HOST || !!BASE_PATH,
     addSchemes: !!SCHEMES,
     addApiKey,
+    addCognito,
     keepOriginalFilename: OUTPUT_KEEP_ORIGINAL_FILENAME === 'true',
     addIntegrationURI,
-  })
+    addTags,
+    applicationName: APPLICATION_NAME,
+  }
+  // APIs specification
+  writeAPIsSpecification(params)
 
-  writeOutputFile({
-    filename,
-    content: template,
-  })
-
-  logInfo(`Output in ${filename}`)
+  // CloudFormation template
+  writeCloudFormationTemplate(params)
 }
 
 init()

@@ -1,9 +1,7 @@
 module.exports = {
-  securityDefinitions: {
-    api_key: {
+    apiKey: {
       type: 'apiKey',
       name: 'x-api-key',
       in: 'header',
     },
-  },
-}
+  }
