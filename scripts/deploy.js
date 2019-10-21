@@ -70,25 +70,35 @@ async function createCFT() {
     },
   ]
 
-  const Key = createS3Key({
-    environment: ENVIRONMENT,
-    applicationName: APPLICATION_NAME,
-  })
-
   const path = createCloudFormationTemplateFilename()
   const template = await loadJSON({path})
 
   const params = {
     StackName: `API-Gateway${!!APPLICATION_NAME ? `-${APPLICATION_NAME}` : ''}`,
     Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_AUTO_EXPAND'],
-    OnFailure: 'ROLLBACK',
     Parameters,
     TemplateBody: JSON.stringify(template),
   }
 
-  await CF.createStack(params).promise()
+  let stackAlreadyExists = false
+  try {
+    const describeStacks = await CF.describeStacks({StackName: params.StackName}).promise()
+    stackAlreadyExists = describeStacks.Stacks.length > 0
+  } catch (err) {
+    stackAlreadyExists = false
+  }
 
-  logSuccess(`\t✓\tCFT Created`)
+  if (!stackAlreadyExists) {
+    params.OnFailure = 'ROLLBACK'
+
+    await CF.createStack(params).promise()
+
+    logSuccess(`\t✓\tCFT Created`)
+  } else {
+    await CF.updateStack(params).promise()
+
+    logSuccess(`\t✓\tCFT Updated`)
+  }
 }
 async function init() {
   logInfo(`Start deployment...`)

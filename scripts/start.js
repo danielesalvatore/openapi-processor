@@ -29,7 +29,51 @@ function addOptionsMethods({template}) {
   return template
 }
 
+function addCorsHeadersMapping({template}) {
+  const {paths} = template
+
+  const keys = Object.keys(paths)
+  const {responseParameters, headers} = loadJS({path: '../templates/cors-headers-mapping.js'})
+
+  keys.forEach(k => {
+    const routeDeclaration = paths[k]
+    const methods = Object.keys(routeDeclaration)
+
+    methods.forEach(m => {
+      if (
+        !routeDeclaration[m]['x-amazon-apigateway-integration'] ||
+        !routeDeclaration[m]['x-amazon-apigateway-integration'].responses
+      ) {
+        return
+      }
+
+      const statuses = Object.keys(routeDeclaration[m]['x-amazon-apigateway-integration'].responses)
+
+      statuses.forEach(s => {
+        routeDeclaration[m]['x-amazon-apigateway-integration'].responses[s].responseParameters = {
+          ...routeDeclaration[m]['x-amazon-apigateway-integration'].responses[s].responseParameters,
+          ...responseParameters,
+        }
+      })
+
+      const responsesStatuses = Object.keys(routeDeclaration[m].responses)
+      responsesStatuses.forEach(s => {
+        routeDeclaration[m].responses[s].headers = {
+          ...routeDeclaration[m].responses[s].headers,
+          ...headers,
+        }
+      })
+    })
+  })
+
+  logSuccess(`\t✓\tCORS headers mapping`)
+
+  return template
+}
+
 function addCorsDefinition({template}) {
+  template = addCorsHeadersMapping({template})
+
   //https://docs.aws.amazon.com/apigateway/latest/developerguide/enable-cors-for-resource-using-swagger-importer-tool.html
   return addOptionsMethods({template})
 }
@@ -95,7 +139,7 @@ function applySecuriyDefinition({template, definition}) {
 
   // Add x-amazon-apigateway-api-key-source Property
   // https://docs.aws.amazon.com/en_pv/apigateway/latest/developerguide/api-gateway-swagger-extensions-api-key-source.html
-  template['x-amazon-apigateway-api-key-source'] = 'HEADER'
+  //template['x-amazon-apigateway-api-key-source'] = 'HEADER'
 
   // Add API key to each path
   const {paths} = template
@@ -107,6 +151,12 @@ function applySecuriyDefinition({template, definition}) {
 
     methods.forEach(m => {
       const definition = resourceDefinition[m]
+
+      if (m.toLowerCase().indexOf('options') > -1) {
+        return
+      }
+
+      definition['x-amazon-apigateway-api-key-source'] = 'HEADER'
 
       if (!Array.isArray(definition.security)) {
         definition.security = []
