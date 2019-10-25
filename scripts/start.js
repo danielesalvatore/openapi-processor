@@ -237,6 +237,36 @@ function addTagsDefinition({template, tags}) {
   return template
 }
 
+function addFaoHeaderDefinition({template, value}) {
+  // Add API key to each path
+  const {paths} = template
+  const resources = Object.keys(paths)
+
+  resources.forEach(r => {
+    const resourceDefinition = paths[r]
+    const methods = Object.keys(resourceDefinition)
+
+    methods.forEach(m => {
+      const definition = resourceDefinition[m]
+
+      if (m.toLowerCase().indexOf('options') > -1) {
+        return
+      }
+
+      // Add integrationc configuration
+      const integration = definition['x-amazon-apigateway-integration']
+      integration.requestParameters = {
+        ...integration.requestParameters,
+        'integration.request.header.X-Fao-Key': `'${value}'` || "'fao-key'",
+      }
+    })
+  })
+
+  logSuccess(`\t✓\tFAO HTTP header`)
+
+  return template
+}
+
 function writeAPIsSpecification(params) {
   const {template} = params
   const filename = createAPIsSpecificationFilename()
@@ -292,6 +322,8 @@ function init() {
     outputFolder,
     keepOriginalFilename,
     applicationName,
+    addFaoHeader,
+    FAO_HEADER_VALUE,
   } = getConfig()
 
   let template = loadOpenAPITemplate({path: INPUT_OPENAPI_API})
@@ -351,6 +383,14 @@ function init() {
     template = addTagsDefinition({
       template,
       tags: TAGS,
+    })
+  }
+
+  // Add FAO 'X-Fao-Header' static header
+  if (addFaoHeader) {
+    template = addFaoHeaderDefinition({
+      template,
+      value: FAO_HEADER_VALUE,
     })
   }
 

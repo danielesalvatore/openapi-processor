@@ -129,6 +129,7 @@ function _getConfig() {
     TAGS,
     APPLICATION_NAME,
     ADD_COGNITO_AUTHORIZER,
+    ADD_FAO_HEADER,
   } = process.env
 
   if (!INPUT_OPENAPI_API) {
@@ -151,6 +152,7 @@ function _getConfig() {
     addCognito: ADD_COGNITO_AUTHORIZER === 'true',
     keepOriginalFilename: OUTPUT_KEEP_ORIGINAL_FILENAME === 'true',
     applicationName: APPLICATION_NAME,
+    addFaoHeader: ADD_FAO_HEADER === 'true',
   }
 }
 module.exports.getConfig = _getConfig

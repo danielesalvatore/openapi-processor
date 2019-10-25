@@ -1,7 +1,7 @@
 module.exports = {
   responseParameters: {
     'method.response.header.Access-Control-Allow-Headers':
-      "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'",
+      "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Fao-Key'",
     'method.response.header.Access-Control-Allow-Methods': "'*'",
     'method.response.header.Access-Control-Allow-Origin': "'*'",
   },
@@ -13,6 +13,9 @@ module.exports = {
       type: 'string',
     },
     'Access-Control-Allow-Origin': {
+      type: 'string',
+    },
+    'X-Fao-Key': {
       type: 'string',
     },
   },
