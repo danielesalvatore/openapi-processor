@@ -237,7 +237,7 @@ function addTagsDefinition({template, tags}) {
   return template
 }
 
-function addFaoHeaderDefinition({template, value}) {
+function addFaoHeaderDefinition({template, value, baseUrl}) {
   // Add API key to each path
   const {paths} = template
   const resources = Object.keys(paths)
@@ -254,9 +254,17 @@ function addFaoHeaderDefinition({template, value}) {
       }
 
       // Add integrationc configuration
+      if (!definition['x-amazon-apigateway-integration']) {
+        const template = loadJS({path: '../templates/aws-integration.js'})
+        definition['x-amazon-apigateway-integration'] = {...template}
+        definition['x-amazon-apigateway-integration'].httpMethod = m.toUpperCase()
+        definition['x-amazon-apigateway-integration'].uri = `${baseUrl}${r}`
+      }
       const integration = definition['x-amazon-apigateway-integration']
+
+      const requestParameters = integration.requestParameters || {}
       integration.requestParameters = {
-        ...integration.requestParameters,
+        ...requestParameters,
         'integration.request.header.X-Fao-Key': `'${value}'` || "'fao-key'",
       }
     })
@@ -391,6 +399,7 @@ function init() {
     template = addFaoHeaderDefinition({
       template,
       value: FAO_HEADER_VALUE,
+      baseUrl: INTEGRATION_FINAL_URI,
     })
   }
 
