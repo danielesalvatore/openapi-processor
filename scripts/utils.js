@@ -142,7 +142,7 @@ function _getConfig() {
     ...process.env,
     addCors: ADD_CORS === 'true',
     addApiKey: ADD_API_KEY === 'true',
-    addIntegrationURI: !!INTEGRATION_FINAL_URI || !!INTEGRATION_URI_TO_REPLACE,
+    addIntegrationURI: !!INTEGRATION_FINAL_URI && !!INTEGRATION_URI_TO_REPLACE,
     addTags: !!TAGS,
     originalFilename: INPUT_OPENAPI_API,
     outputFolder: OUPUT_FOLDER,

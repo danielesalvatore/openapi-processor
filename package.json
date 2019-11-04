@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "cross-env AWS_SDK_LOAD_CONFIG=true node ./scripts/start.js",
+    "predeploy" : "npm start",
     "deploy": "cross-env AWS_SDK_LOAD_CONFIG=true node ./scripts/deploy.js"
   },
   "repository": {

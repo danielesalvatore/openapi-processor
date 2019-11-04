@@ -13,11 +13,19 @@ const {
 // Env file configuration
 require('dotenv').config()
 
+function extractOpenApiVersion({template}) {
+  const {openapi, swagger} = template
+  const raw = swagger || openapi
+  const split = raw.split('.')
+  return split[0]
+}
+
 function addOptionsMethods({template}) {
   const {paths} = template
 
   const keys = Object.keys(paths)
-  const {options} = loadJS({path: '../templates/cors-options-method.js'})
+  const version = extractOpenApiVersion({template})
+  const {options} = loadJS({path: `../templates/cors-options-method-${version}.js`})
 
   keys.forEach(k => {
     const routeDeclaration = paths[k]
@@ -33,38 +41,81 @@ function addCorsHeadersMapping({template}) {
   const {paths} = template
 
   const keys = Object.keys(paths)
-  const {responseParameters, headers} = loadJS({path: '../templates/cors-headers-mapping.js'})
+  const version = extractOpenApiVersion({template})
+  const mapping = loadJS({
+    path: `../templates/cors-headers-mapping-${version}.js`,
+  })
 
-  keys.forEach(k => {
-    const routeDeclaration = paths[k]
-    const methods = Object.keys(routeDeclaration)
+  if (version === '3') {
+    const {/* responseParameters, */ parameters} = mapping
 
-    methods.forEach(m => {
-      if (
-        !routeDeclaration[m]['x-amazon-apigateway-integration'] ||
-        !routeDeclaration[m]['x-amazon-apigateway-integration'].responses
-      ) {
-        return
+    keys.forEach(k => {
+      const routeDeclaration = paths[k]
+      const methods = Object.keys(routeDeclaration)
+
+      if (!Array.isArray(routeDeclaration.parameters)) {
+        routeDeclaration.parameters = []
       }
+      routeDeclaration.parameters = [...routeDeclaration.parameters, ...parameters]
 
-      const statuses = Object.keys(routeDeclaration[m]['x-amazon-apigateway-integration'].responses)
+      // methods.forEach(m => {
+      //   if (
+      //     !routeDeclaration[m]['x-amazon-apigateway-integration'] ||
+      //     !routeDeclaration[m]['x-amazon-apigateway-integration'].responses
+      //   ) {
+      //     return
+      //   }
 
-      statuses.forEach(s => {
-        routeDeclaration[m]['x-amazon-apigateway-integration'].responses[s].responseParameters = {
-          ...routeDeclaration[m]['x-amazon-apigateway-integration'].responses[s].responseParameters,
-          ...responseParameters,
+      //   const statuses = Object.keys(
+      //     routeDeclaration[m]['x-amazon-apigateway-integration'].responses,
+      //   )
+
+      //   statuses.forEach(s => {
+      //     routeDeclaration[m]['x-amazon-apigateway-integration'].responses[s].responseParameters = {
+      //       ...routeDeclaration[m]['x-amazon-apigateway-integration'].responses[s]
+      //         .responseParameters,
+      //       ...responseParameters,
+      //     }
+      //   })
+      // })
+    })
+  } else {
+    const {responseParameters, headers} = mapping
+
+    keys.forEach(k => {
+      const routeDeclaration = paths[k]
+      const methods = Object.keys(routeDeclaration)
+
+      methods.forEach(m => {
+        if (
+          !routeDeclaration[m]['x-amazon-apigateway-integration'] ||
+          !routeDeclaration[m]['x-amazon-apigateway-integration'].responses
+        ) {
+          return
         }
-      })
 
-      const responsesStatuses = Object.keys(routeDeclaration[m].responses)
-      responsesStatuses.forEach(s => {
-        routeDeclaration[m].responses[s].headers = {
-          ...routeDeclaration[m].responses[s].headers,
-          ...headers,
-        }
+        const statuses = Object.keys(
+          routeDeclaration[m]['x-amazon-apigateway-integration'].responses,
+        )
+
+        statuses.forEach(s => {
+          routeDeclaration[m]['x-amazon-apigateway-integration'].responses[s].responseParameters = {
+            ...routeDeclaration[m]['x-amazon-apigateway-integration'].responses[s]
+              .responseParameters,
+            ...responseParameters,
+          }
+        })
+
+        const responsesStatuses = Object.keys(routeDeclaration[m].responses)
+        responsesStatuses.forEach(s => {
+          routeDeclaration[m].responses[s].headers = {
+            ...routeDeclaration[m].responses[s].headers,
+            ...headers,
+          }
+        })
       })
     })
-  })
+  }
 
   logSuccess(`\t✓\tCORS headers mapping`)
 
@@ -125,13 +176,30 @@ function addSchemes({template, schemes}) {
 }
 
 function applySecuriyDefinition({template, definition}) {
-  // Add API Key security definitions
-  if (typeof template.securityDefinitions !== 'object') {
-    template.securityDefinitions = {}
-  }
-  template.securityDefinitions = {
-    ...template.securityDefinitions,
-    ...definition,
+  const version = extractOpenApiVersion({template})
+
+  if (version === '2') {
+    // Add API Key security definitions
+    if (typeof template.securityDefinitions !== 'object') {
+      template.securityDefinitions = {}
+    }
+    template.securityDefinitions = {
+      ...template.securityDefinitions,
+      ...definition,
+    }
+  } else {
+    if (typeof template.components !== 'object') {
+      template.components = {}
+    }
+
+    if (!typeof template.components.securitySchemes !== 'object') {
+      template.components.securitySchemes = {}
+    }
+
+    template.components.securitySchemes = {
+      ...template.components.securitySchemes,
+      ...definition,
+    }
   }
 
   const apyKeyNames = Object.keys(definition)
@@ -225,11 +293,20 @@ function addTagsDefinition({template, tags}) {
   if (!Array.isArray(template)) {
     template.tags = []
   }
+  const version = extractOpenApiVersion({template})
 
   const split = tags.split(',')
   split.forEach(t => {
     const [key, value] = t.split(':')
-    template.tags.push({[key]: value})
+
+    if (version === '3') {
+      template.tags.push({
+        name: key,
+        description: value,
+      })
+    } else {
+      template.tags.push({[key]: value})
+    }
   })
 
   logSuccess(`\t✓\tTags`)
@@ -237,7 +314,7 @@ function addTagsDefinition({template, tags}) {
   return template
 }
 
-function addFaoHeaderDefinition({template, value, baseUrl}) {
+function addAWSIntegrationDefinition({template, value, baseUrl}) {
   // Add API key to each path
   const {paths} = template
   const resources = Object.keys(paths)
@@ -260,6 +337,30 @@ function addFaoHeaderDefinition({template, value, baseUrl}) {
         definition['x-amazon-apigateway-integration'].httpMethod = m.toUpperCase()
         definition['x-amazon-apigateway-integration'].uri = `${baseUrl}${r}`
       }
+    })
+  })
+
+  logSuccess(`\t✓\tAWS integration`)
+
+  return template
+}
+
+function addFaoHeaderDefinition({template, value, baseUrl}) {
+  // Add API key to each path
+  const {paths} = template
+  const resources = Object.keys(paths)
+
+  resources.forEach(r => {
+    const resourceDefinition = paths[r]
+    const methods = Object.keys(resourceDefinition)
+
+    methods.forEach(m => {
+      const definition = resourceDefinition[m]
+
+      if (m.toLowerCase().indexOf('options') > -1) {
+        return
+      }
+
       const integration = definition['x-amazon-apigateway-integration']
 
       const requestParameters = integration.requestParameters || {}
@@ -338,6 +439,14 @@ function init() {
   logSuccess(`\t✓\tLoad template`)
 
   logInfo(`Start processing...`)
+  const version = extractOpenApiVersion({template})
+
+  // Add AWS integration
+  template = addAWSIntegrationDefinition({
+    template,
+    value: FAO_HEADER_VALUE,
+    baseUrl: INTEGRATION_FINAL_URI,
+  })
 
   // Add CORS
   if (addCors) {
@@ -352,7 +461,12 @@ function init() {
   })
 
   // Alter Host values
-  template = addHost({template, host: HOST, basePath: BASE_PATH})
+  if (version === '3') {
+    delete template.host
+    delete template.basePath
+  } else {
+    template = addHost({template, host: HOST, basePath: BASE_PATH})
+  }
 
   // Alter Schemes
   template = addSchemes({template, schemes: SCHEMES})
@@ -372,13 +486,6 @@ function init() {
 
   // Replace Integration URI
   if (addIntegrationURI) {
-    // Validation: both values have to be provided
-    if (!INTEGRATION_FINAL_URI || !INTEGRATION_URI_TO_REPLACE) {
-      throw new Error(
-        `Impossible to replace integration URI: both 'INTEGRATION_URI_TO_REPLACE' and 'INTEGRATION_FINAL_URI' have to be specified in .env file`,
-      )
-    }
-
     template = replaceIntegrationURI({
       template,
       searchValue: INTEGRATION_URI_TO_REPLACE,
