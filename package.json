@@ -16,7 +16,7 @@
   "license": "ISC",
   "homepage": "https://bitbucket.org/cioapps/openapi-processor#readme",
   "dependencies": {
-    "aws-sdk": "^2.544.0",
+    "aws-sdk": "^2.814.0",
     "chalk": "^2.4.2",
     "cross-env": "^6.0.3",
     "dotenv": "^8.1.0",
